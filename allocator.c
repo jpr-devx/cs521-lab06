@@ -38,7 +38,7 @@ void append(mem_block* block) {
     block->prev = NULL;
     block->used = 0;
 
-    if (head) head->prev = block;
+    if (head != NULL) head->prev = block;
     head = block;
 
     if (tail == NULL) tail = block;
@@ -121,8 +121,7 @@ void *malloc(size_t size)
  * Otherwise, or if ptr has already been freed, undefined behavior occurs.
  * If ptr is NULL, no operation is performed.
  */
-void free(void *ptr)
-{
+void free(void *ptr) {
     if (ptr == NULL) return; /* Freeing a NULL pointer does nothing. */
 
     mem_block *block = (mem_block *) ptr - 1;
@@ -142,28 +141,25 @@ void free(void *ptr)
     //       that the code below is unmapping the block that was just freed, so
     //       you will need to change it.
 
-    if (list_size > ALLOC_THRESH) { // List has run out of space, unmap the oldest block
+    if (list_size > ALLOC_THRESH) {
+        // List has run out of space, unmap the oldest block
         mem_block* popped = pop();
         if (popped == NULL) return;
-
-        if (popped->size >= block_size) {
-
-        }
-
         int result = munmap(popped, popped->size);
         if (result == -1) {
             perror("munmap");
-        } else {
-            TRACE("Unmapped block -- [%p]: %zu bytes -- list_size: %d", block, block_size, list_size);
         }
-    } else { // We have enough space, re-append the block to the head of the list as unused so it can be used later
-        mem_block* popped = pop();
-        if (popped == NULL) return;
-        popped->used = 0;
-        append(popped); // Re-append the block to the head of the list marking it as unused
-        TRACE("Cached free block -- [%p]: %zu bytes -- list_size: %d", block, block_size, list_size);
+        // else {
+        //     TRACE("Unmapped block -- [%p]: %zu bytes -- list_size: %d", block, block_size, list_size);
+        // }
+        // We have enough space, re-append the block to the head of the list as unused so it can be used la
+        if (list_size <= ALLOC_THRESH){
+            printf("Brace for segfault!!\n");
+            block->used = 0;
+            append(block); // Re-append the block to the head of the list marking it as unused
+            TRACE("Cached free block -- [%p]: %zu bytes -- list_size: %d", block, block_size, list_size);
+        }
     }
-
 }
 
 /**
