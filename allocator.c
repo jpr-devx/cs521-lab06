@@ -28,9 +28,9 @@ struct mem_block {
     int used;
 } typedef mem_block;
 
+int ALLOC_THRESH = 10;
 mem_block* head = NULL;
 mem_block* tail = NULL;
-int ALLOC_THRESH = 10;
 int list_size = 0;
 
 void append(mem_block* block) {
@@ -43,6 +43,37 @@ void append(mem_block* block) {
 
     if (tail == NULL) tail = block;
     list_size++;
+}
+
+void remove_from_list(mem_block* block){
+
+    if (head == NULL) return;
+    if (head == block) {
+        mem_block* temp = head;
+        head = head->next;
+        // munmap(temp, sizeof(mem_block));
+        return;
+    }
+    if (tail == block) {
+        mem_block* temp = tail;
+        tail = tail->prev;
+        // munmap(temp, sizeof(mem_block));
+        return;
+    }
+
+    // mem_block* curr = head;
+    // if (curr->next == NULL) return;
+    // while (curr->next->next != NULL) {
+    //     if (curr->next == block) {
+    //         mem_block* temp = curr->next;
+    //         curr->next = curr->next->next;
+    //         munmap(temp, sizeof(mem_block));
+    //         return;
+    //     }
+    //     curr = curr->next;
+    // }
+    block->prev->next = block->next;
+    // munmap(block, sizeof(mem_block));
 }
 
 /**
@@ -83,6 +114,10 @@ void *malloc(size_t size)
     //       in the list, you can mmap a new block.
     mem_block* curr = tail;
     while (curr != NULL) { // First we are looking for a big enough block that is free
+        if (curr->used && curr->size >= block_size) { // per email, remove block if its reused in malloc()
+            remove_from_list(curr);
+            list_size--;
+        }
         if (!curr->used && curr->size >= block_size) { // viable block has been found, mark as used and return block
             curr->used = 1;
             TRACE("Reused block -- [%p]: %zu bytes -- list_size: %d", curr, curr->size, list_size);
@@ -107,7 +142,7 @@ void *malloc(size_t size)
     }
 
     block->size = block_size;
-    append(block);
+    // append(block); // removed this per email
 
     block->used = 1; // Clarify: So should I set this to used?
 
@@ -141,7 +176,7 @@ void free(void *ptr) {
     //       that the code below is unmapping the block that was just freed, so
     //       you will need to change it.
 
-    if (list_size > ALLOC_THRESH) {
+    if (list_size >= ALLOC_THRESH) {
         // List has run out of space, unmap the oldest block
         mem_block* popped = pop();
         if (popped == NULL) return;
@@ -149,16 +184,13 @@ void free(void *ptr) {
         if (result == -1) {
             perror("munmap");
         }
-        // else {
-        //     TRACE("Unmapped block -- [%p]: %zu bytes -- list_size: %d", block, block_size, list_size);
-        // }
-        // We have enough space, re-append the block to the head of the list as unused so it can be used la
-        if (list_size <= ALLOC_THRESH){
-            printf("Brace for segfault!!\n");
-            block->used = 0;
-            append(block); // Re-append the block to the head of the list marking it as unused
-            TRACE("Cached free block -- [%p]: %zu bytes -- list_size: %d", block, block_size, list_size);
+        else {
+            TRACE("Unmapped block -- [%p]: %zu bytes -- list_size: %d", block, block_size, list_size);
         }
+        // We have enough space, re-append the block to the head of the list as unused so it can be used la
+    } else {
+        append(block); // Re-append the block to the head of the list marking it as unused
+        TRACE("Cached free block -- [%p]: %zu bytes -- list_size: %d", block, block_size, list_size);
     }
 }
 
@@ -200,6 +232,7 @@ void *realloc(void *ptr, size_t size){
     if (new_ptr == NULL) return NULL;
 
     memcpy(new_ptr, ptr, block->size - sizeof(mem_block));
+    TRACE("Resized block [%p]: %zu bytes -> %zu bytes", block, block->size, size);
     free(ptr);
     return new_ptr;
 }
