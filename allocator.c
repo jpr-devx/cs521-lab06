@@ -40,18 +40,20 @@ void append(mem_block* block) {
 }
 
 void remove_from_list(mem_block* block){
-
-    if (head == NULL) return;
-    if (head == block) {
+    if (head == NULL || tail == NULL) return; // There's nothing in the list
+    if (block == head && block == tail) { // There's only one block left
+        head = NULL;
+        tail = NULL;
+    } else if (block == head) { // head != tail, block being removed is the head
         head = head->next;
-        return;
-    }
-    if (tail == block) {
+        head->prev = NULL;
+    } else if (block == tail) { // head != tail, block being removed is the tail
         tail = tail->prev;
-        return;
+        tail->next = NULL;
+    } else { // block being removed is neither the head nor tail, somewhere in between
+        block->prev->next = block->next;
+        block->next->prev = block->prev;
     }
-    block->prev->next = block->next;
-    block->next->prev = block->prev;
 }
 
 /**
@@ -63,6 +65,8 @@ mem_block* pop() {
     if (tail == NULL) return NULL;
     mem_block* popped = tail;
     tail = popped->prev;
+    popped->prev = NULL;
+    popped->next = NULL;
     if (tail != NULL) tail->next = NULL;
     else head = NULL;
     list_size--;
